@@ -1,0 +1,418 @@
+---
+title: "Analysis of Flights In & Out of New York City in 2013"
+format: html
+editor: visual
+---
+
+## Project Description & Scope
+
+The data which will be analysed is contained within the **nycflights13** package. There is no set goal to be achieved here other than an exploratory analysis of the data. The EDA process will be conducted starting from importing data and finishing with communicating my findings to the end user. Each of these will be noted for your convenience.
+
+## Let's look at the data
+
+```{r}
+#| label: load-packages
+#| include: false
+library(tidyverse)
+library(nycflights13)
+library(scales)
+```
+
+The nycflights13 package contains multiple data sets. Using the code below shows what they are.
+
+```{r}
+data(package = "nycflights13")
+```
+
+[airlines]{.underline}: Used to look up airline names using carrier codes.\
+[airports]{.underline}: Metadata about airports.\
+[**flights**]{.underline}: The main data set containing on-time data for all flights that departed from NYC in 2013.\
+[planes]{.underline}: Metadata about all plane tail numbers in the FAA aircraft registry.\
+[weather]{.underline}: Hourly meteorological data for LGA, JFK and EWR.
+
+## What does the data set look like and what are its parts?
+
+**General Shape**
+
+There are 336,776 observations and 19 variables.
+
+```{r}
+dim(flights)
+```
+
+**Classes**
+
+The classes of each variable are below, with 8 being integers, 6 being numbers, 4 being characters and 1 being POSIXct.
+
+```{r}
+str(flights)
+```
+
+**Categorical Columns**
+
+```{r}
+unique(flights$origin) 
+unique(flights$dest) 
+unique(flights$carrier)
+head(unique(flights$tailnum)) # There are a total of 4035 tailnumbers
+```
+
+**Cancelled Departures**
+
+```{r}
+sum(is.na(flights$dep_time))
+```
+
+**Create new variable "date" that combines the year, month and day variables**
+
+```{r}
+flights <- flights %>%
+  mutate(date = make_date(year, month, day))
+```
+
+**Create new data frames for each origin airport \[Tidy\]**
+
+```{r}
+ewr_df <- flights %>% filter(origin == "EWR")
+lga_df <- flights %>% filter(origin == "LGA")
+jfk_df <- flights %>% filter(origin == "JFK")
+```
+
+**Create new data frames for cancelled departures from each origin airport \[Tidy\]**
+
+```{r}
+ewr_c <- ewr_df %>% filter(is.na(dep_time))
+lga_c <- lga_df %>% filter(is.na(dep_time))
+jfk_c <- jfk_df %>% filter(is.na(dep_time))
+```
+
+## **What answers & information will you gain from this?**
+
+1.  If there are any trends that occurred at the 3 origin airports, EWA, LGA and JFK
+
+2.  Visualizations of delays at all airports
+
+**What did the delays look like per month at each origin airport?**
+
+This turns out to not produce useful information, resulting in average delays under 1 minute due to how many observations there are. This isn't meaningful for every day people but average delay per carrier might be. Please keep in mind that NA values simply mean that that specific carrier didn't fly to that specific origin airport. Let's see below and break it down.
+
+**What did the departure delays look like per carrier at each origin airport? \[EDA\]**
+
+Rankings go from highest to lowest delay.
+
+[EWR]{.underline}: OO, EV, WN, MQ, B6
+
+[LGA]{.underline}: F9, EV, YV, FL, WN
+
+[JFK]{.underline}: 9E, EV, VX, MQ, B6
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+# What Did the Departure Delays Look Like Per Carrier at Each Origin Airport? [EDA]
+ewr_dep_delay <- ewr_df %>%
+  group_by(carrier) %>%
+  summarise(ewr = mean(dep_delay, na.rm = TRUE)) %>%
+  arrange(desc(ewr))
+
+lga_dep_delay <- lga_df %>%
+  group_by(carrier) %>%
+  summarise(lga = mean(dep_delay, na.rm = TRUE)) %>%
+  arrange(desc(lga))
+
+jfk_dep_delay <- jfk_df %>%
+  group_by(carrier) %>%
+  summarise(jfk = mean(dep_delay, na.rm = TRUE)) %>%
+  arrange(desc(jfk))
+
+avg_dep_delays <- list(ewr_dep_delay, 
+                       lga_dep_delay, 
+                       jfk_dep_delay)
+
+avg_dep_delays_df <- avg_dep_delays %>%
+  reduce(full_join, by = "carrier")
+
+avg_dep_delays_df
+```
+
+**What did the arrival delays look like per carrier at each origin airport?**
+
+Rankings go from highest to lowest delay.
+
+[EWR]{.underline}: OO, EV, MQ, WN, B6
+
+[LGA]{.underline}: F9, FL, YV, B6, OO
+
+[JFK]{.underline}: EV, MQ, B6, 9E, VX
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+# What Did the Arrival Delays Look Like Per Carrier at Each Origin Airport? [EDA]
+ewr_arr_delay <- ewr_df %>%
+  group_by(carrier) %>%
+  summarise(ewr = mean(arr_delay, na.rm = TRUE)) %>%
+  arrange(desc(ewr))
+
+lga_arr_delay <- lga_df %>%
+  group_by(carrier) %>%
+  summarise(lga = mean(arr_delay, na.rm = TRUE)) %>%
+  arrange(desc(lga))
+
+jfk_arr_delay <- jfk_df %>%
+  group_by(carrier) %>%
+  summarise(jfk = mean(arr_delay, na.rm = TRUE)) %>%
+  arrange(desc(jfk))
+
+avg_arr_delays <- list(ewr_arr_delay, 
+                       lga_arr_delay, 
+                       jfk_arr_delay)
+
+avg_arr_delays_df <- avg_arr_delays %>%
+  reduce(full_join, by = "carrier")
+
+avg_arr_delays_df
+```
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| warning: false
+#| code-summary: "Full Code"
+colors <- c("EWR" = "blue", "LGA" = "red", "JFK" = "orange")
+
+ggplot() +
+  geom_point(data = avg_arr_delays_df, mapping = aes(carrier, ewr, color = "EWR", group = 1)) +
+  geom_line(data = avg_arr_delays_df, mapping = aes(carrier, ewr, color = "EWR", group = 1)) +
+  geom_point(data = avg_arr_delays_df, mapping = aes(carrier, lga, color = "LGA", group = 1)) +
+  geom_line(data = avg_arr_delays_df, mapping = aes(carrier, lga, color = "LGA", group = 1)) +
+  geom_point(data = avg_arr_delays_df, mapping = aes(carrier, jfk, color = "JFK", group = 1)) +
+  geom_line(data = avg_arr_delays_df, mapping = aes(carrier, jfk, color = "JFK", group = 1)) +
+  scale_color_manual(values = colors) +
+  ggtitle("Average Arrival Delays Per Origin Airport Per Carrier (in minutes)") +
+  labs(x = "Carrier",
+       y = "Delay Amount (in minutes)",
+       color = "Legend")
+```
+
+**Amount of Departure Delays (in Hours) Per Month for Origin Airports**
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+data.frame(flights %>%
+  filter(dep_delay >= 0) %>%
+  group_by(month) %>%
+  summarise(delays = sum(dep_delay/60, na.rm = TRUE))) %>%
+  ggplot(aes(month, delays)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  scale_color_manual(values = colors) +
+  ggtitle("Departure Delays Per Month (in Hours)") +
+  labs(x = "Month",
+       y = "Departure Delay (in Hours)",
+       color = "Legend")
+```
+
+**Amount of Arrival Delays (in Hours) Per Month for Origin Airports**
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+data.frame(flights %>%
+  group_by(month) %>%
+  filter(arr_delay >= 0) %>%
+  summarise(delays = sum(arr_delay/60, na.rm = TRUE))) %>%
+  ggplot(aes(month, delays)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  scale_color_manual(values = colors) +
+  ggtitle("Arrival Delays Per Month (in Hours)") +
+  labs(x = "Month",
+       y = "Arrival Delay (in Hours)",
+       color = "Legend")
+```
+
+**Amount of Departure Delays (in Hours) Per Month at Origin Airports**
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+ewr_dep_del_month_hr <- flights %>%
+  group_by(month) %>%
+  filter(origin == "EWR", dep_delay >= 0) %>%
+  summarise(ewr = sum(dep_delay/60, na.rm = TRUE))
+
+lga_dep_del_month_hr <- flights %>%
+  group_by(month) %>%
+  filter(origin == "LGA", dep_delay >= 0) %>%
+  summarise(lga = sum(dep_delay/60, na.rm = TRUE))
+
+jfk_dep_del_month_hr <- flights %>%
+  group_by(month) %>%
+  filter(origin == "JFK", dep_delay >= 0) %>%
+  summarise(jfk = sum(dep_delay/60, na.rm = TRUE))
+
+avg_dep_delays_month <- list(ewr_dep_del_month_hr, 
+                             lga_dep_del_month_hr, 
+                             jfk_dep_del_month_hr)
+
+avg_dep_delays_month_hr_df <- avg_dep_delays_month %>%
+  reduce(full_join, by = "month") %>%
+  data.frame()
+
+avg_dep_delays_month_hr_df
+```
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+colors <- c("EWR" = "blue", "LGA" = "red", "JFK" = "orange")
+
+ggplot() +
+  geom_line(data = avg_dep_delays_month_hr_df, mapping = aes(month, ewr, color = "EWR")) +
+  geom_point(data = avg_dep_delays_month_hr_df, mapping = aes(month, ewr, color = "EWR")) +
+  geom_line(data = avg_dep_delays_month_hr_df, mapping = aes(month, lga, color = "LGA")) +
+  geom_point(data = avg_dep_delays_month_hr_df, mapping = aes(month, lga, color = "LGA")) +
+  geom_line(data = avg_dep_delays_month_hr_df, mapping = aes(month, jfk, color = "JFK")) +
+  geom_point(data = avg_dep_delays_month_hr_df, mapping = aes(month, jfk, color = "JFK")) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  scale_color_manual(values = colors) +
+  ggtitle("Amount of Departure Delays (in Hours) at Origin Airports") +
+  labs(x = "Month",
+       y = "Number of Delays",
+       color = "Legend")
+```
+
+**Amount of Arrival Delays (in Hours) Per Month at Origin Airports**
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+ewr_arr_del_month_hr <- flights %>%
+  group_by(month) %>%
+  filter(origin == "EWR", arr_delay >= 0) %>%
+  summarise(ewr = sum(arr_delay/60, na.rm = TRUE))
+
+lga_arr_del_month_hr <- flights %>%
+  group_by(month) %>%
+  filter(origin == "LGA", arr_delay >= 0) %>%
+  summarise(lga = sum(arr_delay/60, na.rm = TRUE))
+
+jfk_arr_del_month_hr <- flights %>%
+  group_by(month) %>%
+  filter(origin == "JFK", arr_delay >= 0) %>%
+  summarise(jfk = sum(arr_delay/60, na.rm = TRUE))
+
+avg_arr_delays_month <- list(ewr_arr_del_month_hr, 
+                             lga_arr_del_month_hr, 
+                             jfk_arr_del_month_hr)
+
+avg_arr_delays_month_hr_df <- avg_arr_delays_month %>%
+  reduce(full_join, by = "month") %>%
+  data.frame()
+
+avg_arr_delays_month_hr_df
+```
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+colors <- c("EWR" = "blue", "LGA" = "red", "JFK" = "orange")
+
+ggplot() +
+  geom_line(data = avg_arr_delays_month_hr_df, mapping = aes(month, ewr, color = "EWR")) +
+  geom_point(data = avg_arr_delays_month_hr_df, mapping = aes(month, ewr, color = "EWR")) +
+  geom_line(data = avg_arr_delays_month_hr_df, mapping = aes(month, lga, color = "LGA")) +
+  geom_point(data = avg_arr_delays_month_hr_df, mapping = aes(month, lga, color = "LGA")) +
+  geom_line(data = avg_arr_delays_month_hr_df, mapping = aes(month, jfk, color = "JFK")) +
+  geom_point(data = avg_arr_delays_month_hr_df, mapping = aes(month, jfk, color = "JFK")) +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  scale_color_manual(values = colors) +
+  ggtitle("Amount of Arrival Delays (in Hours) at Origin Airports") +
+  labs(x = "Month",
+       y = "Number of Delays",
+       color = "Legend")
+```
+
+#### Average Departure Delay (in Minutes) Per Month Per Origin Airport
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+#| message: false
+
+avg_daily_dep_delay <- flights %>%
+  group_by(origin, date) %>%
+  filter(dep_delay >= 0) %>%
+  summarise(avg_dep_delay = mean(dep_delay))
+
+avg_daily_dep_delay %>%
+  ggplot(aes(date, avg_dep_delay)) +
+  geom_point(aes(color = origin)) +
+  geom_smooth() +
+  ggtitle("Average Departure Delays Per Month (in minutes)") +
+  scale_color_manual(values = c("EWR" = "blue", "LGA" = "red", "JFK" = "orange")) +
+  labs(x = "Month",
+       y = "Delay Length (in minutes)",
+       color = "Legend")
+```
+
+#### Average Arrival Delay (in Minutes) Per Month Per Origin Airport
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+#| message: false
+
+avg_daily_arr_delay <- flights %>%
+  group_by(origin, date) %>%
+  filter(arr_delay >= 0) %>%
+  summarise(avg_arr_delay = mean(arr_delay))
+
+avg_daily_arr_delay %>%
+  ggplot(aes(date, avg_arr_delay)) +
+  geom_point(aes(color = origin)) +
+  geom_smooth() +
+  ggtitle("Average Arrival Delays Per Month (in minutes)") +
+  scale_color_manual(values = c("EWR" = "blue", "LGA" = "red", "JFK" = "orange")) +
+  labs(x = "Month",
+       y = "Delay Length (in minutes)",
+       color = "Legend")
+```
+
+#### Let's now compare trend lines of the above 2 graphs
+
+```{r}
+#| echo: true
+#| code-fold: true
+#| code-summary: "Full Code"
+#| message: false
+
+colors <- c("Average Departure Delay" = "blue", "Average Arrival Delay" = "red")
+
+
+ggplot() +
+  geom_smooth(data = avg_daily_dep_delay, mapping = aes(date, avg_dep_delay, color = "Average Departure Delay"), se = F) +
+  geom_smooth(data = avg_daily_arr_delay, mapping = aes(date, avg_arr_delay, color = "Average Arrival Delay"), se = F) +
+  scale_color_manual(values = colors) +
+  labs(x = "Month",
+       y = "Delay Length (in minutes)",
+       color = "Legend")
+```
+
+**What Have We Learned So Far From This Basic Exploratory Data Analysis?**
+
+The flights data set has 336,776 observations across 19 different variables and those variables contain 4 classes. There are 3 origin airports being EWR, LGA and JFK and 105 destination airports. There are 16 carriers flying to and from these airports and those carriers have 4035 unique tail numbers shared between them. 8,255 flights were cancelled. The most common airlines to have the highest amount of delays in minutes were OO, F9 and EV.
